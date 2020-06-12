@@ -1,0 +1,96 @@
+- mmio for screen (51x19 text, 0xFFFF0000-0xFFFF03C9), keyboard (only US-ASCII, 0xFFFF03CA-0xFFFF04C9), disk (62.802734375k, 0xFFFF04CA-0xFFFFFFFF)
+- 32 bit, big endian
+
+CONSTANTS
+
+  NULL          |       Nothing / argument has no effect.
+  WORD          |       32-bit unsigned integer.
+  REG           |       Register ID (WORD). See REGISTERS.
+  ADDR          |       Memory address (WORD). See MEMORY.
+
+
+REGISTERS
+
+  There are 64 general-purpose registers, each of which stores a single 32-bit unsigned integer. These are addressable as registers 0x00000000 through 0x00000040. There are also a few specific registers not directly addressable.
+
+  CMPRESULT     |       Stores the result of the last call to CMPR.
+  IRQTABLE      |       Pointer to a lookup table for interrupts. See INTERRUPTS and LOOKUPS.
+  TIMERDELAY    |       How long the timer should wait between firing interrupts.
+  LASTIRQPARAM  |       The single parameter of the last interrupt. Set to 0x00000000 if not applicable.
+  OFFSETPOINTER |       The current instruction pointer. Modified by JUMP and BRANCH.
+  STACKPOINTER  |       The stack pointer.
+
+
+MEMORY
+
+  There are 4 gigabytes of addressable memory. The stack is 64 kilobytes.
+
+
+INTERRUPTS
+
+  Interrupts can be disabled. Any interrupt above 16 and up to 255 can be fired by the INTR instruction.
+
+  DOUBLEFAULT           |       Interrupt 0, the Double Fault exception, caused by an unhandled interrupt. If not handled, will hard-reset the computer.
+  STACKOVERFLOW         |       Interrupt 1, the Stack Overflow exception, caused when the stack is too deep. If not handled, generates a Double Fault.
+  ILLEGALINSTRUCTION    |       Interrupt 2, fired when a program calls an illegal instruction
+  BADINTERRUPT          |       Interrupt 3, the program tried to fire an illegal or protected interrupt
+  TIMER                 |       Interrupt 4, sent every $(REGISTERS::TIMERDELAY) instructions. Useful for pre-emptive multitasking.
+  KEYDOWN               |       Interrupt 5, fired when a key is pressed or, if key repeat is enabled, when a key repeats.
+  KEYUP                 |       Interrupt 6, fired when a key is released.
+
+
+LOOKUPS
+
+  The interrupt vector table (IVT) is a fixed-size, 256-word array stored in memory at, by default, address 0xFFFDFC00. Each word points to the offset to jump to for the corresponding interrupt number.
+
+
+INSTRUCTIONS
+
+NAME | OPCODE     | PARAM_01   | PARAM_23   | PARAM_45   | DESCRIPTION
+----------------------------------------------------------------------
+NOOP | 0x00000000 | -          | -          | -          | Do nothing
+LMEM | 0x00001000 | FROM:ADDR  | TO:REG     | -          | Load memory address FROM into register TO.
+LVAL | 0x00001001 | DATA:WORD  | TO:REG     | -          | Load DATA into register REG.
+COPY | 0x00001002 | FROM:REG   | TO:REG     | -          | Copy register FROM into register TO.
+LREG | 0x00001003 | FROM:REG   | TO:REG     | -          | Load a value from memory address stored in register FROM to register TO.
+STOR | 0x00002000 | FROM:REG   | TO:ADDR    | -          | Copy register FROM into memory at address TO.
+SREG | 0x00002001 | FROM:REG   | TO:REG     | -          | STOR value in FROM at memory address stored in register TO.
+CMPR | 0x00003000 | MODE:WORD  | ONE:WORD   | TWO:WORD   | Compare ONE and TWO, storing the result in CMPRESULT. See CMPR MODES for details.
+JUMP | 0x00004000 | OFSET:ADDR | -          | -          | Unconditionally jump to offset OFSET.
+BREQ | 0x00004001 | OFSET:ADDR | -          | -          | Jump to offset OFSET if CMPRESULT == 0
+BNEQ | 0x00004002 | OFSET:ADDR | -          | -          | Jump to offset OFSET if CMPRESULT != 0
+BRLT | 0x00004003 | OFSET:ADDR | -          | -          | Jump to offset OFSET if CMPRESULT == 1
+BRGT | 0x00004004 | OFSET:ADDR | -          | -          | Jump to offset OFSET if CMPRESULT == 2
+JSUB | 0x00004005 | OFSET:ADDR | -          | -          | Jump to subroutine at offset OFSET, PUSHing the current offset + 16 to the stack first.
+RTRN | 0x00004006 | -          | -          | -          | Return from subroutine. POPs the first offset off the stack and JUMPs to it.
+PUSH | 0x00005000 | FROM:REG   | -          | -          | Push value in REG to the stack, decrementing the pointer by 4.
+POP  | 0x00005001 | TO:REG     | -          | -          | Pull the top value of the stack into register TO. 
+CNTX | 0x00005002 | CNTX:WORD  | -          | -          | Perform a context switch - set the stack pointer to CNTX.
+ADD  | 0x00006000 | RGSTR:REG  | ADD:WORD   | -          | Add ADD to the value in RGSTR.
+SUB  | 0x00006001 | RGSTR:REG  | SUBTR:WORD | -          | Subtract SUBTR from the value in RGSTR.
+MULT | 0x00006002 | RGSTR:REG  | MULBY:WORD | -          | Multiply the value in RGSTR by MULBY.
+DIV  | 0x00006003 | RGSTR:REG  | DIVBY:WORD | -          | Divide the value in RGSTR by MULBY. The result will always be an integer.
+BLS  | 0x00006004 | RGSTR:REG  | BITS:WORD  | -          | Shift the value in RGSTR left by BITS bits.
+BRS  | 0x00006005 | RGSTR:REG  | BITS:WORD  | -          | Shift the value in RGSTR right by BITS bits.
+BAND | 0x00006006 | RESULT:REG | REGAB:REG  | REGCD:REG  | Perform a bitwise AND on the values in REGAB and REGCD, storing the output in RESULT.
+BOR  | 0x00006007 | RESULT:REG | REGAB:REG  | REGCD:REG  | Perform a bitwise OR on the values in REGAB and REGCD, storing the output in RESULT.
+BXOR | 0x00006008 | RESULT:REG | REGAB:REG  | REGCD:REG  | Like BOR, but bitwise XOR.
+DINT | 0x0000E000 | -          | -          | -          | Disable interrupts.
+EINT | 0x0000E001 | -          | -          | -          | Enable interrupts.
+SINT | 0x0000E002 | INTR:WORD  | OFSET:ADDR | -          | Set interrupt vector for interrupt INTR to OFSET.
+INTR | 0x0000E003 | INTR:WORD  | PARAM:WORD | -          | Fire interrupt INTR. If INTR is < 8 or > 255, fires a BADINTERRUPT.
+INTB | 0x0000E004 | OFSET:ADDR | -          | -          | Set the memory offset at which the interrupt vector table starts.
+TINT | 0x0000E005 | INTVL:WORD | -          | -          | Set the timer interrupt rate to every INTVL instructions.
+HALT | 0x0000F000 | RETN:WORD  | -          | -          | Halt. If RETN is 1, shuts down. If RETN is 2, restars. If RETN is 3, acts as a breakpoint.
+
+
+CMPR MODES
+
+  0     |       REGISTER/REGISTER
+  1     |       REGISTER/VALUE
+
+CMPR RESULTS
+
+  0     |       ONE == TWO
+  1     |       ONE < TWO
+  2     |       ONE > TWO
