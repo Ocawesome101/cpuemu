@@ -296,6 +296,7 @@ end
 
 print("Main loop")
 local timer = 0
+local start = os.epoch("utc")
 while true do
   timer = timer + 1
   os.startTimer(0)
@@ -309,7 +310,7 @@ while true do
   elseif event[1] == "terminate" then
     break
   end
-  if timer >= registers.TIMERDELAY and interrupts.ENABLED then
+  if timer % registers.TIMERDELAY == 0 and interrupts.ENABLED then
     push(registers.OFFSETPOINTER)
     table.insert(queued_interrupts, interrupts.TIMER)
   end
@@ -341,8 +342,9 @@ while true do
   instructions[opcode](param_01, param_23, param_45)
   if timer % 1024 == 0 then updatedisplay() end
 end
+local time = os.epoch("utc") - start
 
 term.clear()
 term.setCursorPos(1,1)
---print(registers.ADDRESSABLE[0], registers.ADDRESSABLE[1], registers.ADDRESSABLE[2])--table.unpack(registers.ADDRESSABLE))
---os.sleep(1)
+print("approx. " .. (timer / (time / 1000)) .. " Hz (" .. timer .. " instructions over " .. time .. " ms)")--registers.ADDRESSABLE[0], registers.ADDRESSABLE[1], registers.ADDRESSABLE[2])--table.unpack(registers.ADDRESSABLE))
+os.sleep(10)

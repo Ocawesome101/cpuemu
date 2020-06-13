@@ -1,0 +1,25 @@
+// OCLang sample
+//
+// comments are done like this
+// statements (except comments) always end with a ';'
+// '{' and '}' declare blocks
+// as yet, there are no functions
+// types:
+//  int - unsigned 32-bit integer
+//  type - base type, can derive other types such as string
+
+def char 0;
+def int::cur 0xFFFF0000;
+def int::max 0xFFFF03C9;
+
+loop {
+  char += 1;
+  if cur == max {
+    cur = 0xFFFF0000;
+  }
+  if char >= 255 {
+    char = 0;
+  }
+  memset cur char;
+  cur += 1;
+}

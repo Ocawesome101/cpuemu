@@ -44,6 +44,19 @@ local replace = {
   halt = 0x0000F000
 }
 
+local function jump(p1)
+  return p1 * 16
+end
+
+local func = {
+  [0x00004000] = jump,
+  [0x00004001] = jump,
+  [0x00004002] = jump,
+  [0x00004003] = jump,
+  [0x00004004] = jump,
+  [0x00004005] = jump
+}
+
 local data = ""
 
 --[[local sc = string.char
@@ -61,15 +74,17 @@ local function uint32(op)
 end
 
 local function packline(op, p1, p2, p3)
+  if func[op] then p1, p2, p3 = func[op](p1, p2, p3) end
   return uint32(op) .. uint32(p1) .. uint32(p2) .. uint32(p3)
 end
 
--- [[
+--[[
 local sm = string.match
 function string.match(s, p)
   print(s, p, sm(s, p))
   return sm(s, p)
 end
+--]]
 
 
 for line in handle:lines() do
