@@ -57,6 +57,10 @@ local func = {
   [0x00004005] = jump
 }
 
+local asmmacro = {}
+function asmmacro.str(s)
+end
+
 local data = ""
 
 --[[local sc = string.char
@@ -96,11 +100,15 @@ for line in handle:lines() do
   if not op then op = line:match("(%g+)") end
   if op then
     print(op, p1, p2, p3)
-    if not replace[op] then
-      error("illegal instruction: " .. op)
+    if asmmacro[op] then
+      data = data .. asmmacro[op](p1, p2, p3)
+    else
+      if not replace[op] then
+        error("illegal instruction: " .. op)
+      end
+      op = replace[op]
+      data = data .. packline(op, p1, p2, p3)
     end
-    op = replace[op]
-    data = data .. packline(op, p1, p2, p3)
   else
     print(line)
   end
